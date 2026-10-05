@@ -1,0 +1,11 @@
+# User service: shows the saved lighting at login (`devctl on`).
+[Unit]
+Description=devctl: restore the saved lighting
+After=graphical-session.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/.cargo/bin/devctl on
+
+[Install]
+WantedBy=default.target

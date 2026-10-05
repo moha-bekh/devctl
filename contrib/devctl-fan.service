@@ -1,0 +1,13 @@
+# System service (root): holds the GPU fans at the minimum saved in the
+# user's devctl config. Replaces gpu-fan-min.service.
+[Unit]
+Description=devctl GPU fan control (keeps the GPU RGB on)
+After=multi-user.target
+
+[Service]
+ExecStart=/home/moha/.cargo/bin/devctl --config /home/moha/.config/devctl/config.toml fan daemon
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
