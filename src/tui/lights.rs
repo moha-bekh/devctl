@@ -238,7 +238,8 @@ impl View for Lights {
             out.text(format!(" {why}"), DIM).end();
         }
         // Keep the selected slot in view when there are more than fit.
-        let room = out.room().saturating_sub(6).max(1);
+        // The palette below takes 4 lines.
+        let room = out.room().saturating_sub(4).max(1);
         let first = self
             .slot
             .saturating_sub(room - 1)

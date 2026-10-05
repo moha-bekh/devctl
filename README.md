@@ -3,6 +3,8 @@
 One tool for this machine's lit devices and GPU fans, speaking each device's
 protocol directly (no OpenRGB).
 
+![devctl's terminal UI: the lights of each device, and the GPU fans](assets/devctl.png)
+
 | id      | device                               | regions                               | modes                       |
 |---------|--------------------------------------|---------------------------------------|-----------------------------|
 | `ram`   | 4 ENE DRAM sticks (SMBus)            | `stick1`-`stick4`, front to back      | off, mono, custom           |
