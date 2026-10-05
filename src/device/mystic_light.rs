@@ -6,6 +6,8 @@
 //! read again to check. Nothing is saved to the board's flash.
 
 use std::fs::File;
+use std::thread::sleep;
+use std::time::Duration;
 
 use anyhow::{Context, bail};
 
@@ -21,16 +23,20 @@ const MODE_STATIC: u8 = 1;
 /// Brightness lives in bits 2-6 of the flags byte.
 const BRIGHTNESS_MAX: u8 = 10 << 2;
 const SAVE_DATA: usize = REPORT_SIZE - 1;
+const TRIES: usize = 3;
 
 /// Region names and their offsets in the report. Each zone starts with mode,
 /// R, G, B, flags, then a second color.
-const ZONES: [(&str, usize); 18] = [
+///
+/// JCORSAIR (offset 53) is left out and never written: any change to it makes
+/// the controller reset and re-enumerate on USB, which then fails the other
+/// zones' writes. JPIPE2 (offset 21) is left out too: the board copies JPIPE1
+/// into it, whatever is written there.
+const ZONES: [(&str, usize); 16] = [
     ("jrgb1", 1),
     ("jpipe1", 11),
-    ("jpipe2", 21),
     ("jrainbow1", 31),
     ("jrainbow2", 42),
-    ("jcorsair", CORSAIR),
     ("jcorsair-outer", 64),
     ("onboard1", 74),
     ("onboard2", 84),
@@ -44,9 +50,6 @@ const ZONES: [(&str, usize); 18] = [
     ("onboard10", 164),
     ("onboard11", 174),
 ];
-/// JCORSAIR only shares the mode/color/flags prefix: the rest holds fan
-/// settings and a byte the board changes on every write.
-const CORSAIR: usize = 53;
 
 pub struct MysticLight {
     file: File,
@@ -103,25 +106,29 @@ impl Device for MysticLight {
             };
             report[at + 1..at + 4].copy_from_slice(&[r, g, b]);
             report[at + 4] = (report[at + 4] & 0x83) | BRIGHTNESS_MAX;
-            if at != CORSAIR {
-                report[at + 5..at + 8].copy_from_slice(&[r, g, b]);
-            }
+            report[at + 5..at + 8].copy_from_slice(&[r, g, b]);
         }
         report[SAVE_DATA] = 0;
-        hidraw::set_feature(&self.file, &report)
-            .context("motherboard: cannot write its feature report")?;
-
-        let check = self
-            .report()
-            .context("motherboard: cannot read its feature report back")?;
-        let bad: Vec<&str> = ZONES
-            .iter()
-            .filter(|(_, at)| check[*at..*at + 5] != report[*at..*at + 5])
-            .map(|(name, _)| *name)
-            .collect();
-        if !bad.is_empty() {
-            bail!("motherboard: {} did not take the new color", bad.join(", "));
+        // Now and then a zone reads back unchanged; writing again fixes it.
+        let mut bad = Vec::new();
+        for attempt in 0..TRIES {
+            if attempt > 0 {
+                sleep(Duration::from_millis(50));
+            }
+            hidraw::set_feature(&self.file, &report)
+                .context("motherboard: cannot write its feature report")?;
+            let check = self
+                .report()
+                .context("motherboard: cannot read its feature report back")?;
+            bad = ZONES
+                .iter()
+                .filter(|(_, at)| check[*at..*at + 5] != report[*at..*at + 5])
+                .map(|(name, _)| *name)
+                .collect();
+            if bad.is_empty() {
+                return Ok(());
+            }
         }
-        Ok(())
+        bail!("motherboard: {} did not take the new color", bad.join(", "));
     }
 }
