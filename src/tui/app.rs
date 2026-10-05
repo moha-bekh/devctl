@@ -32,8 +32,9 @@ pub trait View {
     /// Clickable areas, as last drawn.
     fn regions(&self) -> &[Region];
     fn click(&mut self, id: usize, state: &mut State);
-    /// True while typing, so the frame's own keys don't fire.
-    fn takes_text(&self) -> bool {
+    /// True while the view holds the keyboard (typing, a popup), so the
+    /// frame's own keys don't fire.
+    fn captures_keys(&self) -> bool {
         false
     }
 }
@@ -146,7 +147,7 @@ impl App {
             return;
         }
         let view = &mut self.views[self.current];
-        if view.takes_text() {
+        if view.captures_keys() {
             view.key(key, &mut self.state);
             return;
         }
@@ -293,6 +294,45 @@ mod tests {
             *shown.borrow(),
             vec![Rgb(0x88, 0x55, 0xFF), Rgb(0xFF, 0, 0)]
         );
+    }
+
+    #[test]
+    fn clicking_a_color_opens_the_wheel_and_a_click_on_it_paints() {
+        let (mut app, shown) = app();
+        // The swatch sits after the selection marker.
+        let screen = render(&mut app);
+        let (row, line) = screen
+            .lines()
+            .enumerate()
+            .find(|(_, l)| l.contains("#8855FF"))
+            .unwrap();
+        let column = line[..line.find("██████").unwrap()].chars().count() as u16;
+        app.mouse(MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column,
+            row: row as u16,
+            modifiers: KeyModifiers::NONE,
+        });
+        assert!(render(&mut app).contains("Color wheel"));
+        // The first wheel cell is the top of the circle: a bright blue-ish
+        // hue, not the purple the slot started from.
+        let wheel = app.views[0]
+            .regions()
+            .iter()
+            .find(|r| r.id >= super::super::wheel::WHEEL)
+            .unwrap()
+            .rect;
+        app.mouse(MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column: wheel.x,
+            row: wheel.y,
+            modifiers: KeyModifiers::NONE,
+        });
+        assert_ne!(*shown.borrow(), Vec::<Rgb>::new());
+        assert_ne!(shown.borrow()[0], Rgb(0x88, 0x55, 0xFF));
+        app.key(KeyEvent::from(KeyCode::Esc));
+        assert_eq!(shown.borrow()[0], Rgb(0x88, 0x55, 0xFF));
+        assert!(!render(&mut app).contains("Color wheel"));
     }
 
     #[test]

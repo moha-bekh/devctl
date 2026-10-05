@@ -9,6 +9,7 @@ use ratatui::widgets::Block;
 
 use super::app::View;
 use super::state::State;
+use super::wheel::{self, Outcome, Wheel};
 use super::widgets::{DIM, Lines, Region, button_style, swatch};
 use crate::color::Rgb;
 use crate::config::{DEFAULT_TRICOLOR, Lighting};
@@ -17,6 +18,7 @@ use crate::custom_base;
 const DEVICE: usize = 0;
 const MODE: usize = 100;
 const SLOT: usize = 200;
+const SWATCH: usize = 300;
 const PALETTE: usize = 400;
 const DIMMER: usize = 500;
 const BRIGHTER: usize = 501;
@@ -48,6 +50,8 @@ struct Lights {
     slot: usize,
     /// The hex color being typed, while typing.
     hex: Option<String>,
+    /// The color wheel, while open, for the selected slot.
+    wheel: Option<Wheel>,
     regions: Vec<Region>,
 }
 
@@ -162,6 +166,34 @@ impl Lights {
         state.set_lighting(self.device, lighting);
     }
 
+    fn slot_color(&self, state: &State) -> Option<Rgb> {
+        slots(state, self.device)
+            .get(self.slot)
+            .map(|(_, color)| *color)
+    }
+
+    fn open_wheel(&mut self, state: &State) {
+        self.wheel = self.slot_color(state).map(Wheel::new);
+    }
+
+    /// Shows what the wheel did, and closes it when done.
+    fn follow_wheel(&mut self, state: &mut State, outcome: Outcome) {
+        let Some(wheel) = &self.wheel else { return };
+        match outcome {
+            Outcome::None => {}
+            Outcome::Changed => {
+                let color = wheel.color();
+                self.paint(state, |_| color);
+            }
+            Outcome::Keep => self.wheel = None,
+            Outcome::Cancel => {
+                let original = wheel.original;
+                self.wheel = None;
+                self.paint(state, |_| original);
+            }
+        }
+    }
+
     fn select_device(&mut self, state: &State, device: usize) {
         if device < state.devices.len() {
             self.device = device;
@@ -256,7 +288,7 @@ impl View for Lights {
                 style,
                 SLOT + i,
             )
-            .span(swatch(*color, 6), Some(SLOT + i))
+            .span(swatch(*color, 6), Some(SWATCH + i))
             .button(format!("  {label:<16}"), style, SLOT + i)
             .text(format!("#{color}"), DIM)
             .end();
@@ -280,9 +312,18 @@ impl View for Lights {
             out.end();
         }
         self.regions.extend(out.render(frame));
+
+        if let Some(wheel) = &mut self.wheel {
+            self.regions.extend(wheel.draw(frame, area));
+        }
     }
 
     fn key(&mut self, key: KeyEvent, state: &mut State) {
+        if let Some(wheel) = &mut self.wheel {
+            let outcome = wheel.key(key.code);
+            self.follow_wheel(state, outcome);
+            return;
+        }
         if let Some(text) = &mut self.hex {
             match key.code {
                 KeyCode::Char(c) if c.is_ascii_hexdigit() && text.len() < 6 => {
@@ -324,6 +365,7 @@ impl View for Lights {
             KeyCode::Char('+') | KeyCode::Char('=') => self.paint(state, |c| c.scale(BRIGHTER_BY)),
             KeyCode::Char('-') => self.paint(state, |c| c.scale(1.0 / BRIGHTER_BY)),
             KeyCode::Char('#') | KeyCode::Char('e') if count > 0 => self.hex = Some(String::new()),
+            KeyCode::Char('w') | KeyCode::Enter => self.open_wheel(state),
             KeyCode::Char(c @ '1'..='9') => {
                 if let Some(color) = PALETTE_COLORS.get(c as usize - '1' as usize) {
                     let color = *color;
@@ -335,13 +377,22 @@ impl View for Lights {
     }
 
     fn keys(&self) -> &'static [(&'static str, &'static str)] {
-        if self.hex.is_some() {
+        if self.wheel.is_some() {
+            &[
+                ("←→", "hue"),
+                ("↑↓", "saturation"),
+                ("+/-", "value"),
+                ("Enter", "keep"),
+                ("Esc", "cancel"),
+            ]
+        } else if self.hex.is_some() {
             &[("Enter", "apply"), ("Esc", "cancel")]
         } else {
             &[
                 ("←→", "device"),
                 ("↑↓", "slot"),
                 ("m", "mode"),
+                ("w", "wheel"),
                 ("1-9", "palette"),
                 ("+/-", "brightness"),
                 ("e", "hex"),
@@ -353,11 +404,21 @@ impl View for Lights {
         &self.regions
     }
 
-    fn takes_text(&self) -> bool {
-        self.hex.is_some()
+    fn captures_keys(&self) -> bool {
+        self.hex.is_some() || self.wheel.is_some()
     }
 
     fn click(&mut self, id: usize, state: &mut State) {
+        if let Some(wheel) = &mut self.wheel {
+            // A click outside the popup closes it, keeping the color.
+            let outcome = if id >= wheel::WHEEL {
+                wheel.click(id)
+            } else {
+                Outcome::Keep
+            };
+            self.follow_wheel(state, outcome);
+            return;
+        }
         match id {
             DEVICE..MODE => self.select_device(state, id - DEVICE),
             MODE..SLOT => {
@@ -365,7 +426,11 @@ impl View for Lights {
                     self.set_mode(state, mode);
                 }
             }
-            SLOT..PALETTE => self.slot = id - SLOT,
+            SLOT..SWATCH => self.slot = id - SLOT,
+            SWATCH..PALETTE => {
+                self.slot = id - SWATCH;
+                self.open_wheel(state);
+            }
             PALETTE..DIMMER => {
                 let color = PALETTE_COLORS[id - PALETTE];
                 self.paint(state, |_| color);

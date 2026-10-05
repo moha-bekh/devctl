@@ -36,6 +36,8 @@ can be clicked, and everything can also be done from the keyboard.
 
 - **Lights**: the devices on the left, the selected device's mode and colors
   on the right, then a palette, dimmer/brighter buttons and hex input.
+  Clicking a color opens a color wheel: hue and saturation on the wheel,
+  value on the bar beside it, shown on the device as you pick.
 - **Fans**: the live GPU temperature and fan speeds, whether the daemon is
   running, and the minimum speed and hand-off temperature.
 
@@ -47,6 +49,7 @@ can be clicked, and everything can also be done from the keyboard.
 | `m`        | next mode                                  |
 | `1`-`9`    | paint the slot with a palette color        |
 | `+` `-`    | brighter/dimmer                            |
+| `w` `Enter`| color wheel (`←→` hue, `↑↓` saturation, `+` `-` value, `Enter` keep, `Esc` cancel) |
 | `e`        | type a hex color (`Enter` applies)         |
 | `o`        | everything on/off                          |
 | `q`        | quit                                       |

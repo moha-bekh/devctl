@@ -25,6 +25,46 @@ impl Rgb {
         let channel = |c: u8| (c as f32 * factor).round().clamp(0.0, 255.0) as u8;
         Rgb(channel(self.0), channel(self.1), channel(self.2))
     }
+
+    /// The color of hue `h` (degrees), saturation `s` and value `v` (0-1).
+    pub fn from_hsv(h: f32, s: f32, v: f32) -> Rgb {
+        let h = h.rem_euclid(360.0) / 60.0;
+        let c = v * s;
+        let x = c * (1.0 - (h % 2.0 - 1.0).abs());
+        let m = v - c;
+        let (r, g, b) = match h as u32 {
+            0 => (c, x, 0.0),
+            1 => (x, c, 0.0),
+            2 => (0.0, c, x),
+            3 => (0.0, x, c),
+            4 => (x, 0.0, c),
+            _ => (c, 0.0, x),
+        };
+        let channel = |f: f32| ((f + m) * 255.0).round().clamp(0.0, 255.0) as u8;
+        Rgb(channel(r), channel(g), channel(b))
+    }
+
+    /// Hue in degrees, saturation and value in 0-1.
+    pub fn to_hsv(self) -> (f32, f32, f32) {
+        let (r, g, b) = (
+            self.0 as f32 / 255.0,
+            self.1 as f32 / 255.0,
+            self.2 as f32 / 255.0,
+        );
+        let max = r.max(g).max(b);
+        let delta = max - r.min(g).min(b);
+        let s = if max == 0.0 { 0.0 } else { delta / max };
+        let h = if delta == 0.0 {
+            0.0
+        } else if max == r {
+            60.0 * ((g - b) / delta).rem_euclid(6.0)
+        } else if max == g {
+            60.0 * ((b - r) / delta + 2.0)
+        } else {
+            60.0 * ((r - g) / delta + 4.0)
+        };
+        (h, s, max)
+    }
 }
 
 impl FromStr for Rgb {
@@ -80,6 +120,21 @@ mod tests {
         for text in ["", "FFF", "GG0000", "8855FF0", "+12345"] {
             assert!(text.parse::<Rgb>().is_err(), "{text}");
         }
+    }
+
+    #[test]
+    fn hsv_round_trips() {
+        for color in [
+            Rgb(0x88, 0x55, 0xFF),
+            Rgb(0xFF, 0, 0),
+            Rgb(0, 0xFF, 0xFF),
+            Rgb(0x12, 0x34, 0x56),
+            Rgb::WHITE,
+        ] {
+            let (h, s, v) = color.to_hsv();
+            assert_eq!(Rgb::from_hsv(h, s, v), color);
+        }
+        assert_eq!(Rgb::from_hsv(120.0, 1.0, 1.0), Rgb(0, 0xFF, 0));
     }
 
     #[test]

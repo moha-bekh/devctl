@@ -7,6 +7,7 @@ mod app;
 mod fans;
 mod lights;
 mod state;
+mod wheel;
 mod widgets;
 
 use std::io::stdout;
