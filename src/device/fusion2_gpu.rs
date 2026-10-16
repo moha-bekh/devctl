@@ -43,7 +43,7 @@ pub fn detect() -> anyhow::Result<Option<Fusion2Gpu>> {
     if !gigabyte_gpu_present() {
         return Ok(None);
     }
-    let Ok(bus) = Bus::find(BUS) else {
+    let Some(bus) = Bus::find(BUS).context("GPU")? else {
         return Ok(None);
     };
     Ok(Some(Fusion2Gpu {

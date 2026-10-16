@@ -26,7 +26,7 @@ pub struct Mm711 {
 }
 
 pub fn detect() -> anyhow::Result<Option<Mm711>> {
-    let Ok((file, _)) = hidraw::open(VENDOR, PRODUCT, Some(INTERFACE)) else {
+    let Some((file, _)) = hidraw::open(VENDOR, PRODUCT, Some(INTERFACE)).context("mouse")? else {
         return Ok(None);
     };
     let mouse = Mm711 {

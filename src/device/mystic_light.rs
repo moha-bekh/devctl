@@ -57,7 +57,7 @@ pub struct MysticLight {
 }
 
 pub fn detect() -> anyhow::Result<Option<MysticLight>> {
-    let Ok((file, _)) = hidraw::open(VENDOR, PRODUCT, None) else {
+    let Some((file, _)) = hidraw::open(VENDOR, PRODUCT, None).context("motherboard")? else {
         return Ok(None);
     };
     let board = MysticLight {

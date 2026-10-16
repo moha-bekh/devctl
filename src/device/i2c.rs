@@ -6,7 +6,7 @@ use std::io::{self, Write};
 use std::os::fd::AsRawFd;
 use std::path::PathBuf;
 
-use anyhow::{Context, anyhow};
+use anyhow::Context;
 
 const I2C_SLAVE_FORCE: libc::c_ulong = 0x0706;
 const I2C_SMBUS: libc::c_ulong = 0x0720;
@@ -30,10 +30,13 @@ pub struct Bus {
 }
 
 impl Bus {
-    /// The bus whose adapter name starts with `name`. Bus numbers change from
-    /// one boot to the next; adapter names don't.
-    pub fn find(name: &str) -> anyhow::Result<Bus> {
-        for entry in fs::read_dir("/sys/class/i2c-dev")? {
+    /// The bus whose adapter name starts with `name`, None when there is no
+    /// such adapter. Bus numbers change from one boot to the next; adapter
+    /// names don't.
+    pub fn find(name: &str) -> anyhow::Result<Option<Bus>> {
+        let entries = fs::read_dir("/sys/class/i2c-dev")
+            .context("no /sys/class/i2c-dev: is the i2c-dev module loaded?")?;
+        for entry in entries {
             let entry = entry?;
             let adapter = fs::read_to_string(entry.path().join("name")).unwrap_or_default();
             if adapter.starts_with(name) {
@@ -43,10 +46,10 @@ impl Bus {
                     .write(true)
                     .open(&path)
                     .with_context(|| format!("cannot open {}", path.display()))?;
-                return Ok(Bus { file, path });
+                return Ok(Some(Bus { file, path }));
             }
         }
-        Err(anyhow!("no i2c adapter named `{name}`"))
+        Ok(None)
     }
 
     fn address(&self, addr: u8) -> io::Result<()> {

@@ -6,11 +6,16 @@ use std::io::{self, Read, Write};
 use std::os::fd::AsRawFd;
 use std::path::PathBuf;
 
-use anyhow::{Context, anyhow};
+use anyhow::Context;
 
 /// Opens the hidraw node of the USB device `vendor:product`, on USB
-/// interface `interface` when the device exposes several.
-pub fn open(vendor: u16, product: u16, interface: Option<u8>) -> anyhow::Result<(File, PathBuf)> {
+/// interface `interface` when the device exposes several. None when the
+/// device is not plugged in; an error when it is but cannot be opened.
+pub fn open(
+    vendor: u16,
+    product: u16,
+    interface: Option<u8>,
+) -> anyhow::Result<Option<(File, PathBuf)>> {
     let id = format!("HID_ID=0003:{vendor:08X}:{product:08X}");
     let mut entries: Vec<_> = fs::read_dir("/sys/class/hidraw")?.collect::<Result<_, _>>()?;
     entries.sort_by_key(|e| e.file_name());
@@ -39,9 +44,9 @@ pub fn open(vendor: u16, product: u16, interface: Option<u8>) -> anyhow::Result<
             .write(true)
             .open(&path)
             .with_context(|| format!("cannot open {}", path.display()))?;
-        return Ok((file, path));
+        return Ok(Some((file, path)));
     }
-    Err(anyhow!("no HID device {vendor:04x}:{product:04x}"))
+    Ok(None)
 }
 
 /// _IOC(_IOC_READ | _IOC_WRITE, 'H', nr, len), as in <linux/hidraw.h>.

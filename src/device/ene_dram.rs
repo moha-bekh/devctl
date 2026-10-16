@@ -47,7 +47,7 @@ pub struct EneDram {
 }
 
 pub fn detect() -> anyhow::Result<Option<EneDram>> {
-    let Ok(bus) = Bus::find(BUS) else {
+    let Some(bus) = Bus::find(BUS).context("RAM")? else {
         return Ok(None);
     };
     remap(&bus).context("cannot give the RAM sticks their addresses")?;
