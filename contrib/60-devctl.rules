@@ -1,0 +1,5 @@
+# The i2c buses (RAM, GPU) and the HID nodes of the MSI board and the Cooler
+# Master mouse, open to the `rgb` group. Goes in /etc/udev/rules.d/.
+KERNEL=="i2c-[0-9]*", GROUP="rgb", MODE="0660"
+KERNEL=="hidraw*", ATTRS{idVendor}=="1462", ATTRS{idProduct}=="7b93", GROUP="rgb", MODE="0660"
+KERNEL=="hidraw*", ATTRS{idVendor}=="2516", ATTRS{idProduct}=="0101", GROUP="rgb", MODE="0660"

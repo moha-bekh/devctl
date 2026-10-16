@@ -71,6 +71,19 @@ Then add it to `device::detect()` and to `device::IDS`.
 
 ## Install
 
+devctl opens the i2c buses and the HID nodes as your user: load `i2c-dev`,
+give the `rgb` group access to the devices, and join it (log out and back
+in afterwards; until then, devctl reports `Permission denied`).
+
+```
+sudo cp contrib/i2c-dev.conf /etc/modules-load.d/ && sudo modprobe i2c-dev
+sudo cp contrib/60-devctl.rules /etc/udev/rules.d/
+sudo udevadm control --reload && sudo udevadm trigger
+sudo groupadd -f rgb && sudo usermod -aG rgb $USER
+```
+
+Then devctl itself, and its two services:
+
 ```
 cargo install --path .
 sudo cp contrib/devctl-fan.service /etc/systemd/system/
@@ -78,6 +91,8 @@ sudo systemctl daemon-reload && sudo systemctl enable --now devctl-fan
 cp contrib/devctl.service ~/.config/systemd/user/ && systemctl --user enable devctl
 ```
 
-Access to `/dev/i2c-*` and `/dev/hidraw*` comes from OpenRGB's udev rules
-(`uaccess`). Setting fan speeds needs root, hence the system service, which
-follows the user's config file.
+Setting fan speeds needs root, hence the system service, which follows the
+user's config file.
+
+On NixOS, `nix/package.nix` builds devctl; the dotfiles' `hosts/nixos/devctl.nix`
+does all of the above.
